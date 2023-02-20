@@ -17,18 +17,15 @@ def getInput() -> dict:
     """
     input = {}
     source = None
-    sourceName = None
     with open(INPUT_FILENAME, "r") as file:
         for line in file:
             line = line.strip()
 
             if source is None:
-                sourceName = line
-                source = input[sourceName] = []
+                source = input[line] = []
                 continue
 
             if line == "":
-                input[sourceName] = [*set(source)]
                 source = None
                 continue
 
@@ -71,12 +68,13 @@ def getRanking(input: dict) -> list:
     rankings = {}
     for sourceKey, sourceValue in input.items():
 
-        for i in range(len(sourceValue)):
+        for i in range(len(sourceValue) - 1, -1, -1):
             sourceSubject = sourceValue[i]
 
             if sourceSubject not in rankings:
                 rankings[sourceSubject] = {}
             
+
             rankings[sourceSubject][sourceKey] = i + 1
 
 
