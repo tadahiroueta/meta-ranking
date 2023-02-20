@@ -1,86 +1,114 @@
-def getRanking() -> list:
-    """Returns a list from user input with new lines as dividers"""
-    ranking = []
-    while True:
-        option = input("Option: ")
-        if option == "":
-            print("<end of ranking>")
-            return ranking
-        ranking.append(option)
+import csv
 
 
-def getRankingMatrix() -> list:
+INPUT_FILENAME = "./data/input.txt"
+OUTPUT_FILENAME = "./data/output.csv"
+
+
+def getInput() -> dict:
     """
     Returns:
-        list of descending, ranked lists of options (e.g. [
-            ["A", "B", "C", "D"],
-            ["B", "C", "D", "A"],
-            ["C", "D", "A", "B"],
-            ["D", "A", "B", "C"]
-        ])
+        dictionary of sources and their rankings (e.g. {
+            "sourceA": ["B", "C", "D"],
+            "sourceB": ["C", "D", "A"],
+            "sourceC": ["D", "A", "B"],
+            "sourceD": ["A", "B", "C"]
+        })
     """
-    rankingMatrix = []
-    while True:
-        ranking = getRanking()
-        if ranking == []:
-            print("<end of matrix>")
-            return rankingMatrix
-        rankingMatrix.append(ranking)
+    input = {}
+    source = None
+    sourceName = None
+    with open(INPUT_FILENAME, "r") as file:
+        for line in file:
+            line = line.strip()
 
-def getRankedDictionary(rankingMatrix: list) -> dict:
+            if source is None:
+                sourceName = line
+                source = input[sourceName] = []
+                continue
+
+            if line == "":
+                input[sourceName] = [*set(source)]
+                source = None
+                continue
+
+            source.append(line)
+
+    return input
+
+def getRanking(input: dict) -> list:
     """
     Parameters:
-        rankingMatrix: list of descending, ranked lists of options (e.g. [
-            ["A", "B", "C", "D"],
-            ["B", "C", "D", "A"],
-            ["C", "D", "A", "B"],
-            ["D", "A", "B", "C"]
-        ])
+        dictionary of sources and their rankings (e.g. {
+            "sourceA": ["B", "C", "D"],
+            "sourceB": ["C", "D", "A"],
+            "sourceC": ["D", "A", "B"],
+            "sourceD": ["A", "B", "C"]
+        })
 
     Returns:
-        dictionary of descending ranked options with a tuple including their mean rank and a list of their rankings (e.g. {
-            "A": (2.5, [1, 2, 3, 4]),
-            "B": (2.5, [2, 3, 4, 1]),
-            "C": (2.5, [3, 4, 1, 2]),
-            "D": (2.5, [4, 1, 2, 3])
-        })
+        list of dictionaries of subjects (e.g. [
+            {
+                "name": "A",
+                "sourceA": 1,
+                "sourceB": 3,
+                "sourceC": 4,
+                "sourceD": 1,
+                "rank": 1.8
+            },
+            {
+                "name": "B",
+                "sourceA": 2,
+                "sourceB": 1,
+                "sourceC": 2,
+                "sourceD": 2,
+                "rank": 1.8
+            }
+        ])
     """
 
     # gather list of rankings
-    rankingDictionary = {}
-    for ranking in rankingMatrix:
-        for i in range(len(ranking)):
-            if ranking[i] not in rankingDictionary:
-                rankingDictionary[ranking[i]] = [i + 1]
+    rankings = {}
+    for sourceKey, sourceValue in input.items():
 
-            else:
-                rankingDictionary[ranking[i]].append(i + 1)
+        for i in range(len(sourceValue)):
+            sourceSubject = sourceValue[i]
 
-    # add estimated ranks from absences
-    for ranking in rankingMatrix:
-        estimatedAbsentRank = int((len(rankingDictionary) + len(ranking) + 1) / 2)
-        for option in rankingDictionary:
-            if option not in ranking:
-                rankingDictionary[option].append(estimatedAbsentRank)
+            if sourceSubject not in rankings:
+                rankings[sourceSubject] = {}
+            
+            rankings[sourceSubject][sourceKey] = i + 1
+
+
+    # add estimated ranks from asbsences
+    for _, subjectValue in rankings.items():
+        for sourceKey, sourceValue in input.items():
+
+            if sourceKey not in subjectValue:
+                subjectValue[sourceKey] = (len(rankings) + len(sourceValue) + 1) / 2
 
     # calculate mean rank
-    for option in rankingDictionary:
-        rankingDictionary[option] = (round(sum(rankingDictionary[option]) / len(rankingDictionary[option]), 1), rankingDictionary[option])
+    for _, subjectValue in rankings.items():
+        subjectValue["rank"] = round(sum(subjectValue.values()) / len(subjectValue), 1)
+
+    # add subject names
+    for subjectKey, subjectValue in rankings.items():
+        subjectValue["subject"] = subjectKey
 
     # sort by mean rank
-    return sorted(rankingDictionary.items(), key=lambda x: x[1][0])
-
-def excelPrint(rankedDictionary: dict):
-    """Prints the dictionary in an excel-like format"""
-    for subject in rankedDictionary:
-        print(subject[0])
-
-    print()
-
-    for subject in rankedDictionary:
-        print(subject[1][0])
+    return [ value for _, value in sorted(rankings.items(), key=lambda item: item[1]["rank"]) ]
 
 if __name__ == "__main__":
-    excelPrint(getRankedDictionary(getRankingMatrix()))
-    
-    input() # keep console open
+    rankings = getRanking(getInput())
+    with open(OUTPUT_FILENAME, "w", newline="") as file:
+        writer = csv.writer(file)
+
+        # my God there must be a better way to do this
+        mostKeys = list(rankings[0].keys())
+        mostKeys.remove("subject")
+        keys = ["subject"]
+        keys.extend(mostKeys)
+
+        writer.writerow(keys)
+        for subject in rankings:
+            writer.writerow([ subject[key] for key in keys ])
